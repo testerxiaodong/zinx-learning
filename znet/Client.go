@@ -2,6 +2,7 @@ package znet
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"time"
 )
@@ -17,18 +18,48 @@ func CreateClient() {
 		return
 	}
 	for {
-		_, err := conn.Write([]byte("Hello World"))
+		//_, err := conn.Write([]byte("Hello World"))
+		//if err != nil {
+		//	fmt.Println("write conn error: ", err)
+		//	return
+		//}
+		//buf := make([]byte, 512)
+		//ctn, err := conn.Read(buf)
+		//if err != nil {
+		//	fmt.Println("read conn error:", err)
+		//	return
+		//}
+		//fmt.Printf("read from server: %s, ctn: %d\n", buf, ctn)
+		dp := NewDatePack()
+		binaryMsg, err := dp.Pack(NewMessage(0, []byte("Zinx v0.5 client Test Message")))
 		if err != nil {
-			fmt.Println("write conn error: ", err)
+			fmt.Println("Pack Message error: ", err)
 			return
 		}
-		buf := make([]byte, 512)
-		ctn, err := conn.Read(buf)
-		if err != nil {
-			fmt.Println("read conn error:", err)
+		if _, err := conn.Write(binaryMsg); err != nil {
+			fmt.Println("write msg error: ", err)
 			return
 		}
-		fmt.Printf("read from server: %s, ctn: %d\n", buf, ctn)
+
+		DataHead := make([]byte, dp.GetHeadLen())
+		if _, err := io.ReadFull(conn, DataHead); err != nil {
+			fmt.Println("Read DataHead error: ", err)
+			break
+		}
+		msgHead, err := dp.Unpack(DataHead)
+		if err != nil {
+			fmt.Println("client unpack server msg error; ", err)
+			break
+		}
+		if msgHead.GetMessageLen() > 0 {
+			msg := msgHead.(*Message)
+			msg.Data = make([]byte, msg.GetMessageLen())
+			if _, err := io.ReadFull(conn, msg.Data); err != nil {
+				fmt.Println("read msg data error: ", err)
+				return
+			}
+			fmt.Println("recv Server Msg: Id = ", msg.Id, "len = ", msg.DateLen, "data = ", string(msg.Data))
+		}
 		time.Sleep(time.Second)
 	}
 }
